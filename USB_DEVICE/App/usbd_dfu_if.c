@@ -21,7 +21,7 @@
 #include "usbd_dfu_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "stdint.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -249,6 +249,216 @@ uint16_t MEM_If_GetStatus_FS(uint32_t Add, uint8_t Cmd, uint8_t *buffer)
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
+
+// Flash 擦除解锁
+uint16_tMEM_If_Init_HS(void){
+  HAL_FLASH_Unlock();
+  return(USBD_OK);
+}
+
+// Flash 擦除上锁
+uint16_tMEM_If_DeInit_HS(void){
+  HAL_FLASH_Lock();
+  return(USBD_OK);
+}
+
+// Flash 获取flash存储区
+static uint32_t GetSector(uint32_t Address){
+  uint32_t sector=0;
+  if((Address< ADDR_FLASH_SECTOR_1) && (Address >=ADDR_FLASH_SECTOR_0)){
+    sector=FLASH_SECTOR_0;
+  }else if((Address< ADDR_FLASH_SECTOR_23) && (Address >=ADDR_FLASH_SECTOR_22)){
+    sector=FLASH_SECTOR_22;
+  }else{
+    sector=FLASH_SECTOR_23;
+  }
+  return sector;
+}
+
+
+// Flash 擦除擦除
+uint16_tMEM_If_Erase_HS(uint32_tAdd)
+
+{
+
+uint32_tstartsector=0;
+
+uint32_tsectornb=0;
+
+/*VariablecontainsFlashoperationstatus*/
+
+HAL_StatusTypeDefstatus;
+
+FLASH_EraseInitTypeDeferaseinitstruct;
+
+/*Getthenumberofsector*/
+
+startsector=GetSector(Add);
+
+
+
+eraseinitstruct.TypeErase=FLASH_TYPEERASE_SECTORS;
+
+eraseinitstruct.VoltageRange=FLASH_VOLTAGE_RANGE_3;
+
+eraseinitstruct.Sector=startsector;
+
+eraseinitstruct.NbSectors=1;
+
+status=HAL_FLASHEx_Erase(&eraseinitstruct,§ornb);
+
+
+
+if(status!=HAL_OK)
+
+{
+
+return(USBD_FAIL);
+
+}
+
+return(USBD_OK);
+
+}
+
+// Flash 擦除擦除
+
+uint16_tMEM_If_Write_HS(uint8_t*src,uint8_t*dest,uint32_tLen)
+
+{
+
+uint32_ti=0;
+
+
+
+for(i=0;i< Len; i += 4)
+
+{
+
+/*Devicevoltagerangesupposedtobe[2.7Vto3.6V],theoperationwill
+
+bedonebybyte*/
+
+if(HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,(uint32_t)(dest+i),*(uint32_t*)(src+i))==HAL_OK)
+
+{
+
+/*Checkthewrittenvalue*/
+
+if(*(uint32_t*)(src+i)!=*(uint32_t*)(dest+i))
+
+{
+
+/*Flashcontentdoesn'tmatchSRAMcontent*/
+
+return(USBD_FAIL);
+
+}
+
+}
+
+else
+
+{
+
+/*ErroroccurredwhilewritingdatainFlashmemory*/
+
+return(USBD_FAIL);
+
+}
+
+}
+
+return(USBD_OK);
+
+}
+
+
+// Flash 读取
+
+
+
+uint8_t*MEM_If_Read_HS(uint8_t*src,uint8_t*dest,uint32_tLen)
+
+{
+
+/*ReturnavalidaddresstoavoidHardFault*/
+
+uint32_ti=0;
+
+uint8_t*psrc=src;
+
+
+
+for(i=0;i< Len; i++)
+
+      {
+
+        dest[i] = *psrc++;
+
+      }
+
+      /*ReturnavalidaddresstoavoidHardFault*/
+
+return(uint8_t*)(dest);
+
+}
+
+
+
+// 获取 Flash 擦写时间参数
+
+
+
+uint16_tMEM_If_GetStatus_HS(uint32_tAdd,uint8_tCmd,uint8_t*buffer)
+
+{
+
+/*USERCODEBEGIN11*/
+
+uint16_ttime;
+
+
+
+time=TimingTable[GetSector(Add)];
+
+
+
+switch(Cmd)
+
+{
+
+caseDFU_MEDIA_PROGRAM:
+
+buffer[1]=(uint8_t)time;
+
+buffer[2]=(uint8_t)(time<< 8);
+
+buffer[3]=0;
+
+break;
+
+
+
+caseDFU_MEDIA_ERASE:
+
+default:
+
+buffer[1]=(uint8_t)time;
+
+buffer[2]=(uint8_t)(time<< 8);
+
+buffer[3]=0;
+
+break;
+
+}
+
+return(USBD_OK);
+
+/*USERCODEEND11*/
+
+}
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
