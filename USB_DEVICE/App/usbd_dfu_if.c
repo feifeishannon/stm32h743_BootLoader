@@ -154,7 +154,8 @@ __ALIGN_BEGIN USBD_DFU_MediaTypeDef USBD_DFU_fops_FS __ALIGN_END =
 uint16_t MEM_If_Init_FS(void)
 {
   /* USER CODE BEGIN 0 */
-  return (USBD_OK);
+  HAL_FLASH_Unlock();
+  return(USBD_OK);
   /* USER CODE END 0 */
 }
 
@@ -165,6 +166,7 @@ uint16_t MEM_If_Init_FS(void)
 uint16_t MEM_If_DeInit_FS(void)
 {
   /* USER CODE BEGIN 1 */
+  HAL_FLASH_Lock();
   return (USBD_OK);
   /* USER CODE END 1 */
 }
@@ -177,8 +179,23 @@ uint16_t MEM_If_DeInit_FS(void)
 uint16_t MEM_If_Erase_FS(uint32_t Add)
 {
   /* USER CODE BEGIN 2 */
-  UNUSED(Add);
-
+  
+  uint32_t  startsector=0;
+  uint32_t sectornb=0;
+  /*VariablecontainsFlashoperationstatus*/
+  HAL_StatusTypeDef status;
+  FLASH_EraseInitTypeDef eraseinitstruct;
+  /*Getthenumberofsector*/
+  startsector=GetSector(Add);
+  eraseinitstruct.TypeErase=FLASH_TYPEERASE_SECTORS;
+  eraseinitstruct.VoltageRange=FLASH_VOLTAGE_RANGE_3;
+  eraseinitstruct.Sector=startsector;
+  eraseinitstruct.NbSectors=1;
+  status=HAL_FLASHEx_Erase(&eraseinitstruct,&sectornb);
+  if(status!=HAL_OK){
+    return(USBD_FAIL);
+  }
+  // UNUSED(Add);
   return (USBD_OK);
   /* USER CODE END 2 */
 }
@@ -193,9 +210,24 @@ uint16_t MEM_If_Erase_FS(uint32_t Add)
 uint16_t MEM_If_Write_FS(uint8_t *src, uint8_t *dest, uint32_t Len)
 {
   /* USER CODE BEGIN 3 */
-  UNUSED(src);
-  UNUSED(dest);
-  UNUSED(Len);
+  uint32_t i=0;
+  for(i=0;i< Len; i += 4){
+    /*Devicevoltagerangesupposedtobe[2.7Vto3.6V],theoperationwill
+    bedonebybyte*/
+    if(HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,(uint32_t)(dest+i),*(uint32_t*)(src+i))==HAL_OK){
+    /*Checkthewrittenvalue*/
+      if(*(uint32_t*)(src+i)!=*(uint32_t*)(dest+i)){
+      /*Flashcontentdoesn'tmatchSRAMcontent*/
+        return(USBD_FAIL);
+      }
+    }else{
+    /*ErroroccurredwhilewritingdatainFlashmemory*/
+      return(USBD_FAIL);
+    }
+  }
+  // UNUSED(src);
+  // UNUSED(dest);
+  // UNUSED(Len);
 
   return (USBD_OK);
   /* USER CODE END 3 */
@@ -212,11 +244,17 @@ uint8_t *MEM_If_Read_FS(uint8_t *src, uint8_t *dest, uint32_t Len)
 {
   /* Return a valid address to avoid HardFault */
   /* USER CODE BEGIN 4 */
-  UNUSED(src);
-  UNUSED(dest);
-  UNUSED(Len);
+  uint32_t i=0;
+  uint8_t*psrc=src;
+  for(i=0;i< Len; i++){
+    dest[i] = *psrc++;
+  }
+  // UNUSED(src);
+  // UNUSED(dest);
+  // UNUSED(Len);
+  return(uint8_t*)(dest);
 
-  return (uint8_t*)(USBD_OK);
+  // return (uint8_t*)(USBD_OK);
   /* USER CODE END 4 */
 }
 
@@ -230,18 +268,23 @@ uint8_t *MEM_If_Read_FS(uint8_t *src, uint8_t *dest, uint32_t Len)
 uint16_t MEM_If_GetStatus_FS(uint32_t Add, uint8_t Cmd, uint8_t *buffer)
 {
   /* USER CODE BEGIN 5 */
-  UNUSED(Add);
-  UNUSED(buffer);
-
+  // UNUSED(Add);
+  // UNUSED(buffer);
+  uint16_t time;
+  time=TimingTable[GetSector(Add)];
   switch (Cmd)
   {
     case DFU_MEDIA_PROGRAM:
-
+      buffer[1]=(uint8_t)time;
+      buffer[2]=(uint8_t)(time<< 8);
+      buffer[3]=0;
     break;
 
     case DFU_MEDIA_ERASE:
     default:
-
+      buffer[1]=(uint8_t)time;
+      buffer[2]=(uint8_t)(time<< 8);
+      buffer[3]=0;
     break;
   }
   return (USBD_OK);
@@ -251,13 +294,13 @@ uint16_t MEM_If_GetStatus_FS(uint32_t Add, uint8_t Cmd, uint8_t *buffer)
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 // Flash ²Á³ý½âËø
-uint16_tMEM_If_Init_HS(void){
+uint16_t MEM_If_Init_HS(void){
   HAL_FLASH_Unlock();
   return(USBD_OK);
 }
 
 // Flash ²Á³ýÉÏËø
-uint16_tMEM_If_DeInit_HS(void){
+uint16_t MEM_If_DeInit_HS(void){
   HAL_FLASH_Lock();
   return(USBD_OK);
 }
@@ -273,191 +316,6 @@ static uint32_t GetSector(uint32_t Address){
     sector=FLASH_SECTOR_23;
   }
   return sector;
-}
-
-
-// Flash ²Á³ý²Á³ý
-uint16_tMEM_If_Erase_HS(uint32_tAdd)
-
-{
-
-uint32_tstartsector=0;
-
-uint32_tsectornb=0;
-
-/*VariablecontainsFlashoperationstatus*/
-
-HAL_StatusTypeDefstatus;
-
-FLASH_EraseInitTypeDeferaseinitstruct;
-
-/*Getthenumberofsector*/
-
-startsector=GetSector(Add);
-
-
-
-eraseinitstruct.TypeErase=FLASH_TYPEERASE_SECTORS;
-
-eraseinitstruct.VoltageRange=FLASH_VOLTAGE_RANGE_3;
-
-eraseinitstruct.Sector=startsector;
-
-eraseinitstruct.NbSectors=1;
-
-status=HAL_FLASHEx_Erase(&eraseinitstruct,¡ìornb);
-
-
-
-if(status!=HAL_OK)
-
-{
-
-return(USBD_FAIL);
-
-}
-
-return(USBD_OK);
-
-}
-
-// Flash ²Á³ý²Á³ý
-
-uint16_tMEM_If_Write_HS(uint8_t*src,uint8_t*dest,uint32_tLen)
-
-{
-
-uint32_ti=0;
-
-
-
-for(i=0;i< Len; i += 4)
-
-{
-
-/*Devicevoltagerangesupposedtobe[2.7Vto3.6V],theoperationwill
-
-bedonebybyte*/
-
-if(HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,(uint32_t)(dest+i),*(uint32_t*)(src+i))==HAL_OK)
-
-{
-
-/*Checkthewrittenvalue*/
-
-if(*(uint32_t*)(src+i)!=*(uint32_t*)(dest+i))
-
-{
-
-/*Flashcontentdoesn'tmatchSRAMcontent*/
-
-return(USBD_FAIL);
-
-}
-
-}
-
-else
-
-{
-
-/*ErroroccurredwhilewritingdatainFlashmemory*/
-
-return(USBD_FAIL);
-
-}
-
-}
-
-return(USBD_OK);
-
-}
-
-
-// Flash ¶ÁÈ¡
-
-
-
-uint8_t*MEM_If_Read_HS(uint8_t*src,uint8_t*dest,uint32_tLen)
-
-{
-
-/*ReturnavalidaddresstoavoidHardFault*/
-
-uint32_ti=0;
-
-uint8_t*psrc=src;
-
-
-
-for(i=0;i< Len; i++)
-
-      {
-
-        dest[i] = *psrc++;
-
-      }
-
-      /*ReturnavalidaddresstoavoidHardFault*/
-
-return(uint8_t*)(dest);
-
-}
-
-
-
-// »ñÈ¡ Flash ²ÁÐ´Ê±¼ä²ÎÊý
-
-
-
-uint16_tMEM_If_GetStatus_HS(uint32_tAdd,uint8_tCmd,uint8_t*buffer)
-
-{
-
-/*USERCODEBEGIN11*/
-
-uint16_ttime;
-
-
-
-time=TimingTable[GetSector(Add)];
-
-
-
-switch(Cmd)
-
-{
-
-caseDFU_MEDIA_PROGRAM:
-
-buffer[1]=(uint8_t)time;
-
-buffer[2]=(uint8_t)(time<< 8);
-
-buffer[3]=0;
-
-break;
-
-
-
-caseDFU_MEDIA_ERASE:
-
-default:
-
-buffer[1]=(uint8_t)time;
-
-buffer[2]=(uint8_t)(time<< 8);
-
-buffer[3]=0;
-
-break;
-
-}
-
-return(USBD_OK);
-
-/*USERCODEEND11*/
-
 }
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
