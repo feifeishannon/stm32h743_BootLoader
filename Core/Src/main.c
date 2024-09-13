@@ -22,11 +22,19 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef struct __FILE {
+    int handle;
+} FILE;
+
+extern FILE __stdout;
+
+void _sys_exit(int x);
+int fputc(int ch, FILE *f);
 
 /* USER CODE END PTD */
 
@@ -60,6 +68,18 @@ static void MX_USART1_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+FILE __stdout;
+
+void _sys_exit(int x){
+    x = x;
+}
+
+int fputc(int ch, FILE *f){
+    HAL_UART_Transmit_IT(&huart1,(uint8_t *)&ch,1);
+    while(__HAL_UART_GET_FLAG(&huart1, UART_FLAG_TC) == RESET){}
+    return ch;
+
+}
 /* USER CODE END 0 */
 
 /**
@@ -103,7 +123,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-
+  printf("USB bootloader test\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */

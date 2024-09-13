@@ -71,7 +71,7 @@
 /*---------- -----------*/
 #define USBD_SUPPORT_USER_STRING_DESC     1U
 /*---------- -----------*/
-#define USBD_DEBUG_LEVEL     0U
+#define USBD_DEBUG_LEVEL     3U
 /*---------- -----------*/
 #define USBD_LPM_ENABLED     1U
 /*---------- -----------*/
@@ -81,7 +81,7 @@
 /*---------- -----------*/
 #define USBD_DFU_XFER_SIZE     1024U
 /*---------- -----------*/
-#define USBD_DFU_APP_DEFAULT_ADD     0x0800c000U
+#define USBD_DFU_APP_DEFAULT_ADD     0x08020000U
 
 /****************************************/
 /* #define for FS and HS identification */

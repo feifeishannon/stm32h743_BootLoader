@@ -22,6 +22,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 #include "stdint.h"
+#include "stdio.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -61,7 +62,7 @@
   * @{
   */
 
-#define FLASH_DESC_STR      "@Internal Flash   /0x08000000/03*016Ka,01*016Kg,01*064Kg,07*128Kg,04*016Kg,01*064Kg,07*128Kg"
+#define FLASH_DESC_STR      "@Internal Flash   /0x08000000/01*128Ka,07*128Kg,08*128Kg"
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
@@ -125,6 +126,7 @@ static uint16_t MEM_If_DeInit_FS(void);
 static uint16_t MEM_If_GetStatus_FS(uint32_t Add, uint8_t Cmd, uint8_t *buffer);
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
+static SectorInfo GetSector(uint32_t Address);
 
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
@@ -180,22 +182,25 @@ uint16_t MEM_If_Erase_FS(uint32_t Add)
 {
   /* USER CODE BEGIN 2 */
   
-  uint32_t  startsector=0;
   uint32_t sectornb=0;
   /*VariablecontainsFlashoperationstatus*/
   HAL_StatusTypeDef status;
   FLASH_EraseInitTypeDef eraseinitstruct;
+  SectorInfo sectorInfo;
   /*Getthenumberofsector*/
-  startsector=GetSector(Add);
+  sectorInfo=GetSector(Add);
   eraseinitstruct.TypeErase=FLASH_TYPEERASE_SECTORS;
-  eraseinitstruct.VoltageRange=FLASH_VOLTAGE_RANGE_3;
-  eraseinitstruct.Sector=startsector;
+  // eraseinitstruct.VoltageRange=FLASH_VOLTAGE_RANGE_3;
+  eraseinitstruct.Banks=sectorInfo.flashBank;
+  eraseinitstruct.Sector=sectorInfo.flashSector;
   eraseinitstruct.NbSectors=1;
   status=HAL_FLASHEx_Erase(&eraseinitstruct,&sectornb);
   if(status!=HAL_OK){
+    printf("MEM_If_Erase_FS_USBD FAIL\r\n");
     return(USBD_FAIL);
   }
   // UNUSED(Add);
+  printf("MEM_If_Erase_FS OK\r\n");
   return (USBD_OK);
   /* USER CODE END 2 */
 }
@@ -214,20 +219,23 @@ uint16_t MEM_If_Write_FS(uint8_t *src, uint8_t *dest, uint32_t Len)
   for(i=0;i< Len; i += 4){
     /*Devicevoltagerangesupposedtobe[2.7Vto3.6V],theoperationwill
     bedonebybyte*/
-    if(HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,(uint32_t)(dest+i),*(uint32_t*)(src+i))==HAL_OK){
+    if(HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD,(uint32_t)(dest+i),*(uint32_t*)(src+i))==HAL_OK){
     /*Checkthewrittenvalue*/
       if(*(uint32_t*)(src+i)!=*(uint32_t*)(dest+i)){
       /*Flashcontentdoesn'tmatchSRAMcontent*/
+        printf("Flash content doesn't match SRAM content\r\n");
         return(USBD_FAIL);
       }
     }else{
     /*ErroroccurredwhilewritingdatainFlashmemory*/
+      printf("Error occurred while writing data in Flashmemory\r\n");
       return(USBD_FAIL);
     }
   }
   // UNUSED(src);
   // UNUSED(dest);
   // UNUSED(Len);
+    printf("MEM_If_Write_FS OK\r\n");
 
   return (USBD_OK);
   /* USER CODE END 3 */
@@ -252,6 +260,7 @@ uint8_t *MEM_If_Read_FS(uint8_t *src, uint8_t *dest, uint32_t Len)
   // UNUSED(src);
   // UNUSED(dest);
   // UNUSED(Len);
+  // printf("MEM_If_Read_FS%d\r\n", Len);
   return(uint8_t*)(dest);
 
   // return (uint8_t*)(USBD_OK);
@@ -270,21 +279,19 @@ uint16_t MEM_If_GetStatus_FS(uint32_t Add, uint8_t Cmd, uint8_t *buffer)
   /* USER CODE BEGIN 5 */
   // UNUSED(Add);
   // UNUSED(buffer);
-  uint16_t time;
-  time=TimingTable[GetSector(Add)];
+  uint16_t flashProgramTime = 50;
+  uint16_t flashEraseTime = 50;
   switch (Cmd)
   {
     case DFU_MEDIA_PROGRAM:
-      buffer[1]=(uint8_t)time;
-      buffer[2]=(uint8_t)(time<< 8);
+      buffer[1]=(uint8_t)flashProgramTime;
+      buffer[2]=(uint8_t)(flashProgramTime<< 8);
       buffer[3]=0;
     break;
 
     case DFU_MEDIA_ERASE:
     default:
-      buffer[1]=(uint8_t)time;
-      buffer[2]=(uint8_t)(time<< 8);
-      buffer[3]=0;
+      buffer[1]=(uint8_t)flashEraseTime;
     break;
   }
   return (USBD_OK);
@@ -293,29 +300,20 @@ uint16_t MEM_If_GetStatus_FS(uint32_t Add, uint8_t Cmd, uint8_t *buffer)
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
-// Flash 擦除解锁
-uint16_t MEM_If_Init_HS(void){
-  HAL_FLASH_Unlock();
-  return(USBD_OK);
-}
-
-// Flash 擦除上锁
-uint16_t MEM_If_DeInit_HS(void){
-  HAL_FLASH_Lock();
-  return(USBD_OK);
-}
-
 // Flash 获取flash存储区
-static uint32_t GetSector(uint32_t Address){
-  uint32_t sector=0;
-  if((Address< ADDR_FLASH_SECTOR_1) && (Address >=ADDR_FLASH_SECTOR_0)){
-    sector=FLASH_SECTOR_0;
-  }else if((Address< ADDR_FLASH_SECTOR_23) && (Address >=ADDR_FLASH_SECTOR_22)){
-    sector=FLASH_SECTOR_22;
-  }else{
-    sector=FLASH_SECTOR_23;
+static SectorInfo  GetSector(uint32_t Address){
+  SectorInfo info = {0, 0};  // 初始化
+  printf("GetSector%d\r\n", Address);
+
+  if (Address < ADDR_FLASH_SECTOR_8) {
+      info.flashBank = BANK1;
+      info.flashSector = (Address - ADDR_FLASH_SECTOR_0) / (ADDR_FLASH_SECTOR_1 - ADDR_FLASH_SECTOR_0);
+  } else{
+      info.flashBank = BANK2;
+      info.flashSector = (Address - ADDR_FLASH_SECTOR_8) / (ADDR_FLASH_SECTOR_9 - ADDR_FLASH_SECTOR_8);
   }
-  return sector;
+
+  return info;
 }
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
