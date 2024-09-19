@@ -157,6 +157,8 @@ uint16_t MEM_If_Init_FS(void)
 {
   /* USER CODE BEGIN 0 */
   HAL_FLASH_Unlock();
+  //清除FLASH的一些标志，可以避免一些莫名其妙的问题
+  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_WRPERR | FLASH_FLAG_PGSERR);
   return(USBD_OK);
   /* USER CODE END 0 */
 }
@@ -216,6 +218,9 @@ uint16_t MEM_If_Write_FS(uint8_t *src, uint8_t *dest, uint32_t Len)
 {
   /* USER CODE BEGIN 3 */
   uint32_t i=0;
+  // printf("MEM_If_Write_FS->src:0x%x\r\n",src);
+  // printf("MEM_If_Write_FS->dest:0x%x\r\n",dest);
+  // printf("MEM_If_Write_FS->Len:%d\r\n",Len);
   for(i=0;i< Len; i += 4){
     /*Devicevoltagerangesupposedtobe[2.7Vto3.6V],theoperationwill
     bedonebybyte*/
@@ -235,7 +240,7 @@ uint16_t MEM_If_Write_FS(uint8_t *src, uint8_t *dest, uint32_t Len)
   // UNUSED(src);
   // UNUSED(dest);
   // UNUSED(Len);
-    printf("MEM_If_Write_FS OK\r\n");
+  printf("MEM_If_Write_FS OK\r\n");
 
   return (USBD_OK);
   /* USER CODE END 3 */
@@ -303,7 +308,7 @@ uint16_t MEM_If_GetStatus_FS(uint32_t Add, uint8_t Cmd, uint8_t *buffer)
 // Flash 获取flash存储区
 static SectorInfo  GetSector(uint32_t Address){
   SectorInfo info = {0, 0};  // 初始化
-  printf("GetSector%d\r\n", Address);
+  printf("GetSector 0x%x\r\n", Address);
 
   if (Address < ADDR_FLASH_SECTOR_8) {
       info.flashBank = BANK1;
